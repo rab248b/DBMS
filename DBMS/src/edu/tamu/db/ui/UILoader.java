@@ -11,11 +11,20 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.nio.file.Files;
+
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+
+import edu.tamu.db.parser.QueryExecution;
 
 public class UILoader extends Frame {
 
@@ -26,8 +35,11 @@ public class UILoader extends Frame {
 	private static boolean sqlCommandFlag =false;
 	private static boolean sqlFileFlag = false;
 	private Label statusLabel;
-	private int frame_width = 600;
-	private int frame_height = 600;
+	private int frame_width = 1024;
+	private int frame_height = 1024;
+	
+	private boolean selectFlag = false;
+	
 
 	UILoader() {
 		Frame f = new Frame();
@@ -90,17 +102,47 @@ public class UILoader extends Frame {
 						f.add(statusLabel);
 					} else {
 						File file = chooser.getSelectedFile();
-						System.out.println(file.getAbsolutePath());
-					}
-					Object rowData[][] = { { "Row1-Column1", "Row1-Column2", "Row1-Column3" },
-							{ "Row2-Column1", "Row2-Column2", "Row2-Column3" } };
-					Object columnNames[] = { "Column One", "Column Two", "Column Three" };
-					JTable table = new JTable(rowData, columnNames);
+						String fileData;
+						try {
+							BufferedReader br = new BufferedReader(new FileReader(file));
+							try {
+							    StringBuilder sb = new StringBuilder();
+							    String line = br.readLine();
 
-					JScrollPane scrollPane = new JScrollPane(table);
-					scrollPane.setBounds(new Rectangle((int) (frame_width / 10), 6 * (int) (frame_height / 10),
-							(int) (frame_width * 0.8), 2 * (int) (frame_height / 10)));
-					f.add(scrollPane, BorderLayout.CENTER);
+							    while (line != null) {
+							        sb.append(line);
+							        sb.append(System.lineSeparator());
+							        line = br.readLine();
+							    }
+							    fileData = sb.toString();
+							} finally {
+							    br.close();
+							}
+							statusLabel.setText(fileData);
+							System.out.println(statusLabel.getText());
+							statusLabel.setBounds(new Rectangle((int) (frame_width / 10), 5 * (int) (frame_height / 10),
+									(int) (frame_width * 0.8), 1 * (int) (frame_height / 10)));
+							statusLabel.setVisible(true);
+							f.add(statusLabel);
+						} catch (IOException e1) {
+							e1.printStackTrace();
+						}
+					}
+					QueryExecution qe = new QueryExecution();
+					qe.runQuery(statusLabel.getText());
+					if (selectFlag) {
+						Object rowData[][] = { { "Row1-Column1", "Row1-Column2", "Row1-Column3" },
+								{ "Row2-Column1", "Row2-Column2", "Row2-Column3" } };
+						Object columnNames[] = { "Column One", "Column Two", "Column Three" };
+						JTable table = new JTable(rowData, columnNames);
+						JScrollPane scrollPane = new JScrollPane(table);
+						scrollPane.setBounds(new Rectangle((int) (frame_width / 10), 6 * (int) (frame_height / 10),
+								(int) (frame_width * 0.8), 2 * (int) (frame_height / 10)));
+						f.add(scrollPane, BorderLayout.CENTER);
+					}else{
+						statusLabel.setText(qe.getResult());
+					}
+					
 				}
 			}
 		});
@@ -117,10 +159,20 @@ public class UILoader extends Frame {
 			}
 
 		});
+		
+		
 	}
 
 	public static void main(String[] args) {
 		UILoader uiLoader = new UILoader();
 		
+	}
+
+	public boolean isSelectFlag() {
+		return selectFlag;
+	}
+
+	public void setSelectFlag(boolean selectFlag) {
+		this.selectFlag = selectFlag;
 	}
 }
