@@ -40,7 +40,7 @@ public class QueryExecution {
 	// static MainMemory mem = new MainMemory();
 	// static Disk disk = new Disk();
 	private Execution executeInstance;
-	private List<Relation> relList = new ArrayList<>();
+	private List<Relation> relList;
 
 	boolean selectFlag;
 	boolean joinFlag;
@@ -77,6 +77,7 @@ public class QueryExecution {
 
 	public void runQuery(String sqlQuery) {
 		TGSqlParser sqlparser = new TGSqlParser(EDbVendor.dbvoracle);
+		relList = new ArrayList<>();
 
 		// sqlparser.sqltext = "SELECT e.last_name AS name,\n" + "
 		// e.commission_pct comm,\n"
@@ -180,7 +181,7 @@ public class QueryExecution {
 				}
 				fromChild.addChild(temp);
 				joinChildNode = new LogicQueryNode(temp);
-				joinChildNode.setTag("Relation");
+				joinChildNode.setTag(temp);
 				joinChildren.add(joinChildNode);
 				executeInstance.getColumns(temp, rel.getColumnList(), rel.getColumnTypeList());
 				relList.add(rel);
@@ -320,6 +321,42 @@ public class QueryExecution {
 						createExcel(outputList);
 						writeDataToFile();
 						// System.out.println("Result = " + result);
+					}
+					else{
+						lqJoinNode.setChildren(joinChildren);
+						lqJoinNode = optimizeLogicalTree(lqJoinNode, innerConditionList, operatorList);
+						lqJoinNode.setTag("Join");
+						executeWithJoin(lqJoinNode);
+						String relationName;
+						while (lqJoinNode.getParent() != null) {
+							relationName = lqJoinNode.getData();
+							lqJoinNode = lqJoinNode.getParent().createCopy();
+							if (lqJoinNode.getCondition() != null) {
+								try {
+//									outputList = executeInstance.showtable(relationName);
+									updateRelationInCondition(lqJoinNode.getCondition());
+									lqJoinNode.setData(
+											executeInstance.applyCondition(relationName, lqJoinNode.getCondition()));
+									updateRelationList(lqJoinNode.getData(),lqJoinNode.getCondition());
+									System.out.println(lqJoinNode.getData());
+								} catch (Exception e) {
+									e.printStackTrace();
+								}
+							}
+							else{
+								lqJoinNode.setData(relationName);
+							}
+						}
+//						lqJoinNode = lqJoinNode.getChildren().get(0).createCopy();
+						if (orderBy != null) {
+							lqJoinNode.setData(executeInstance.performSimpleSorting(lqJoinNode.getData(), orderBy));
+						}
+						result = executeInstance.performProjection(lqJoinNode.getData(),
+								(ArrayList<String>) projectionList);
+						outputList = executeInstance.showtable(result);
+						createExcel(outputList);
+						writeDataToFile();
+						
 					}
 				}
 			} else {

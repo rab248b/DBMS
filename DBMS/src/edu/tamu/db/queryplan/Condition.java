@@ -1,8 +1,6 @@
 package edu.tamu.db.queryplan;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,7 +20,7 @@ public class Condition {
 	// column 2nd value, 00- both values
 	// for single case 00 - leftOperand is value , 11- column.
 	private int rightOperandColumn;
-	
+
 	private boolean isProcessed = false;
 
 	public String getLeftOperand() {
@@ -51,6 +49,7 @@ public class Condition {
 
 	private String[] leftOperandList;
 	private String[] rightOperandList;
+
 	public String[] getLeftOperandList() {
 		return leftOperandList;
 	}
@@ -73,8 +72,15 @@ public class Condition {
 	public void checkOperands() {
 		String pattern = "[\\*\\+\\-]";
 
+		if (leftOperand.contains("(") && leftOperand.contains("(")) {
+			if (leftOperand.contains("("))
+				leftOperand = leftOperand.replace("(", "");
+			if (leftOperand.contains(")"))
+				leftOperand = leftOperand.replace(")", "");
+		}
 		Pattern r = Pattern.compile(pattern);
 		Matcher m = r.matcher(leftOperand);
+
 		int start;
 		if (m.find()) {
 			start = m.start();
@@ -104,7 +110,12 @@ public class Condition {
 				leftOperandColumn = 11;
 			}
 		}
-
+		if (rightOperand.contains("(") && rightOperand.contains("(")) {
+			if (rightOperand.contains("("))
+				rightOperand = rightOperand.replace("(", "");
+			if (rightOperand.contains(")"))
+				rightOperand = rightOperand.replace(")", "");
+		}
 		m = r.matcher(rightOperand);
 		if (m.find()) {
 			start = m.start();
@@ -137,22 +148,26 @@ public class Condition {
 		if (rightOperandColumn != 0 && leftOperandColumn != 0) {
 			if (rightOperandRelationName.equals(leftOperandRelationName))
 				sameRelationFlag = true;
-		}else{
-			if(rightOperandColumn != 0 && leftOperandColumn ==0){
+		} else {
+			if (rightOperandColumn != 0 && leftOperandColumn == 0) {
 				sameRelationFlag = true;
 				leftOperandRelationName = rightOperandRelationName;
-			}else if(leftOperandColumn !=0 && rightOperandColumn ==0){
+			} else if (leftOperandColumn != 0 && rightOperandColumn == 0) {
 				sameRelationFlag = true;
-				rightOperandRelationName  = leftOperandRelationName;
+				rightOperandRelationName = leftOperandRelationName;
 			}
 		}
-		
-		
+
 	}
 
 	public void checkOperands(String relationName) {
 		String pattern = "[\\*\\+\\-]";
-
+		if (leftOperand.contains("(") && leftOperand.contains("(")) {
+			if (leftOperand.contains("("))
+				leftOperand = leftOperand.replace("(", "");
+			if (leftOperand.contains(")"))
+				leftOperand = leftOperand.replace(")", "");
+		}
 		Pattern r = Pattern.compile(pattern);
 		Matcher m = r.matcher(leftOperand);
 		int start;
@@ -166,18 +181,34 @@ public class Condition {
 				leftOperandColumn = 00;
 			} else if ((checkColumn(leftOperandList[0]) && (!checkColumn(leftOperandList[2])))) {
 				leftOperandColumn = 01;
-				if (!rightOperandList[2].contains("."))
+				if (!leftOperandList[2].contains(".")) {
 					leftOperandList[2] = relationName + "." + leftOperandList[2];
+					leftOperandRelationName = relationName;
+				} else {
+					leftOperandRelationName = leftOperandList[2].substring(0, leftOperandList[2].indexOf("."));
+				}
 			} else if ((!checkColumn(leftOperandList[0]) && (checkColumn(leftOperandList[2])))) {
 				leftOperandColumn = 10;
-				if (!rightOperandList[0].contains("."))
+				if (!leftOperandList[0].contains(".")) {
 					leftOperandList[0] = relationName + "." + leftOperandList[0];
+					leftOperandRelationName = relationName;
+				} else {
+					leftOperandRelationName = leftOperandList[0].substring(0, leftOperandList[0].indexOf("."));
+				}
 			} else {
 				leftOperandColumn = 11;
-				if (!rightOperandList[0].contains("."))
+				if (!leftOperandList[0].contains(".")) {
 					leftOperandList[0] = relationName + "." + leftOperandList[0];
-				if (!rightOperandList[2].contains("."))
+					leftOperandRelationName = relationName;
+				} else {
+					leftOperandRelationName = leftOperandList[0].substring(0, leftOperandList[0].indexOf("."));
+				}
+				if (!leftOperandList[2].contains(".")) {
 					leftOperandList[2] = relationName + "." + leftOperandList[2];
+					leftOperandRelationName = relationName;
+				} else {
+					leftOperandRelationName = leftOperandList[2].substring(0, leftOperandList[2].indexOf("."));
+				}
 			}
 			setLeftOperandList(true);
 		} else {
@@ -185,11 +216,20 @@ public class Condition {
 				leftOperandColumn = 00;
 			} else {
 				leftOperandColumn = 11;
-				if (!rightOperand.contains("."))
+				if (!rightOperand.contains(".")) {
 					leftOperand = relationName + "." + leftOperand;
+					leftOperandRelationName = relationName;
+				} else {
+					leftOperandRelationName = leftOperand.substring(0, leftOperand.indexOf("."));
+				}
 			}
 		}
-
+		if (rightOperand.contains("(") && rightOperand.contains(")")) {
+			if (rightOperand.contains("("))
+				rightOperand = rightOperand.replace("(", "");
+			if (rightOperand.contains(")"))
+				rightOperand = rightOperand.replace(")", "");
+		}
 		m = r.matcher(rightOperand);
 		if (m.find()) {
 			start = m.start();
@@ -201,18 +241,35 @@ public class Condition {
 				rightOperandColumn = 00;
 			} else if ((checkColumn(rightOperandList[0]) && (!checkColumn(rightOperandList[2])))) {
 				rightOperandColumn = 01;
-				if (!rightOperandList[2].contains("."))
+				if (!rightOperandList[2].contains(".")) {
 					rightOperandList[2] = relationName + "." + rightOperandList[2];
+					rightOperandRelationName = relationName;
+				} else {
+					rightOperandRelationName = rightOperandList[2].substring(0, rightOperandList[2].indexOf("."));
+				}
 			} else if ((!checkColumn(rightOperandList[0]) && (checkColumn(rightOperandList[2])))) {
 				rightOperandColumn = 10;
-				if (!rightOperandList[0].contains("."))
+				if (!rightOperandList[0].contains(".")) {
 					rightOperandList[0] = relationName + "." + rightOperandList[0];
+					rightOperandRelationName = relationName;
+				} else {
+					rightOperandRelationName = rightOperandList[0].substring(0, rightOperandList[0].indexOf("."));
+				}
+
 			} else {
 				rightOperandColumn = 11;
-				if (!rightOperandList[0].contains("."))
+				if (!rightOperandList[0].contains(".")) {
 					rightOperandList[0] = relationName + "." + rightOperandList[0];
-				if (!rightOperandList[2].contains("."))
+					rightOperandRelationName = relationName;
+				} else {
+					rightOperandRelationName = rightOperandList[0].substring(0, rightOperandList[0].indexOf("."));
+				}
+				if (!rightOperandList[2].contains(".")) {
 					rightOperandList[2] = relationName + "." + rightOperandList[2];
+					rightOperandRelationName = relationName;
+				} else {
+					rightOperandRelationName = rightOperandList[2].substring(0, rightOperandList[2].indexOf("."));
+				}
 			}
 			setRightOperandList(true);
 		} else {
@@ -220,8 +277,12 @@ public class Condition {
 				rightOperandColumn = 00;
 			} else {
 				rightOperandColumn = 11;
-				if (!rightOperand.contains("."))
+				if (!rightOperand.contains(".")) {
 					rightOperand = relationName + "." + rightOperand;
+					rightOperandRelationName = relationName;
+				} else {
+					rightOperandRelationName = rightOperand.substring(0, rightOperand.indexOf("."));
+				}
 			}
 		}
 
@@ -280,6 +341,13 @@ public class Condition {
 	}
 
 	public void setSameRelationFlag(boolean sameRelationFlag) {
+		if(sameRelationFlag== true){
+			if(leftOperandRelationName !=null){
+				rightOperandRelationName = leftOperandRelationName;
+			}else if(rightOperandRelationName != null){
+				leftOperandRelationName = rightOperandRelationName;
+			}
+		}
 		this.sameRelationFlag = sameRelationFlag;
 	}
 
@@ -316,57 +384,60 @@ public class Condition {
 	public void setProcessed(boolean isProcessed) {
 		this.isProcessed = isProcessed;
 	}
-	
-	
-	public void updateRelationInCondition(List<LogicQueryNode> relationList){
+
+	public void updateRelationInCondition(List<LogicQueryNode> relationList) {
 		String oldRelationName;
 		String newRelationName;
-		for(int i=0; i<relationList.size(); i++){
-			if(this.getLeftOperandRelationName().equals(relationList.get(i).getData())){
+		for (int i = 0; i < relationList.size(); i++) {
+			if (this.getLeftOperandRelationName().equals(relationList.get(i).getData())) {
 				oldRelationName = this.getLeftOperandRelationName();
 				newRelationName = relationList.get(i).getTag();
 				this.setLeftOperandRelationName(relationList.get(i).getTag());
-				if(isLeftOperandList){
-					if(this.getLeftOperandColumn() ==0){
-						
+				if (isLeftOperandList) {
+					if (this.getLeftOperandColumn() == 0) {
+
+					} else if (this.getLeftOperandColumn() == 10) {
+						this.getLeftOperandList()[0] = this.getLeftOperandList()[0].replaceAll(oldRelationName,
+								newRelationName);
+					} else if (this.getLeftOperandColumn() == 1) {
+						this.getLeftOperandList()[2] = this.getLeftOperandList()[2].replaceAll(oldRelationName,
+								newRelationName);
+					} else {
+						this.getLeftOperandList()[0] = this.getLeftOperandList()[0].replaceAll(oldRelationName,
+								newRelationName);
+						this.getLeftOperandList()[2] = this.getLeftOperandList()[2].replaceAll(oldRelationName,
+								newRelationName);
 					}
-					else if(this.getLeftOperandColumn() == 10){
-						this.getLeftOperandList()[0]=this.getLeftOperandList()[0].replaceAll(oldRelationName, newRelationName);
-					}else if(this.getLeftOperandColumn()==1){
-						this.getLeftOperandList()[2]=this.getLeftOperandList()[2].replaceAll(oldRelationName, newRelationName);
-					}else{
-						this.getLeftOperandList()[0]=this.getLeftOperandList()[0].replaceAll(oldRelationName, newRelationName);
-						this.getLeftOperandList()[2]=this.getLeftOperandList()[2].replaceAll(oldRelationName, newRelationName);
+				} else {
+					if (this.getLeftOperandColumn() == 0) {
+						this.setLeftOperand(this.getLeftOperand().replaceAll(oldRelationName, newRelationName));
+					} else {
+						this.setLeftOperand(this.getLeftOperand().replaceAll(oldRelationName, newRelationName));
 					}
 				}
-				else{
-					if(this.getLeftOperandColumn() ==0){
-						this.setLeftOperand(this.getLeftOperand().replaceAll(oldRelationName, newRelationName));
-					}else{
-						this.setLeftOperand(this.getLeftOperand().replaceAll(oldRelationName, newRelationName));
-					}
-				}
-			}else if(this.getRightOperandRelationName().equals(relationList.get(i).getData())){
+			} else if (this.getRightOperandRelationName().equals(relationList.get(i).getData())) {
 				oldRelationName = this.getRightOperandRelationName();
 				newRelationName = relationList.get(i).getTag();
 				this.setRightOperandRelationName(relationList.get(i).getTag());
-				if(isRightOperandList){
-					if(this.getRightOperandColumn() ==0){
-						
+				if (isRightOperandList) {
+					if (this.getRightOperandColumn() == 0) {
+
+					} else if (this.getRightOperandColumn() == 10) {
+						this.getRightOperandList()[0] = this.getRightOperandList()[0].replaceAll(oldRelationName,
+								newRelationName);
+					} else if (this.getRightOperandColumn() == 1) {
+						this.getRightOperandList()[2] = this.getRightOperandList()[2].replaceAll(oldRelationName,
+								newRelationName);
+					} else {
+						this.getRightOperandList()[0] = this.getRightOperandList()[0].replaceAll(oldRelationName,
+								newRelationName);
+						this.getRightOperandList()[2] = this.getRightOperandList()[2].replaceAll(oldRelationName,
+								newRelationName);
 					}
-					else if(this.getRightOperandColumn() == 10){
-						this.getRightOperandList()[0]=this.getRightOperandList()[0].replaceAll(oldRelationName, newRelationName);
-					}else if(this.getRightOperandColumn()==1){
-						this.getRightOperandList()[2]=this.getRightOperandList()[2].replaceAll(oldRelationName, newRelationName);
-					}else{
-						this.getRightOperandList()[0]=this.getRightOperandList()[0].replaceAll(oldRelationName, newRelationName);
-						this.getRightOperandList()[2]=this.getRightOperandList()[2].replaceAll(oldRelationName, newRelationName);
-					}
-				}
-				else{
-					if(this.getRightOperandColumn() ==0){
+				} else {
+					if (this.getRightOperandColumn() == 0) {
 						this.setRightOperand(this.getRightOperand().replaceAll(oldRelationName, newRelationName));
-					}else{
+					} else {
 						this.setRightOperand(this.getRightOperand().replaceAll(oldRelationName, newRelationName));
 					}
 				}
