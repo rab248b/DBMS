@@ -35,7 +35,7 @@ public class Relation {
 	@Override
 	public String toString() {
 		return "Relation [relationName=" + relationName + ", columnList=" + columnList + ", columnTypeList="
-				+ columnTypeList + "]";
+				+ columnTypeList + ", aliasName=" + aliasName + "]";
 	}
 	public String getAliasName() {
 		return aliasName;

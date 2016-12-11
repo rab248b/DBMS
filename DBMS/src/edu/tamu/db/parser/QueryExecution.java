@@ -24,6 +24,8 @@ import gudusoft.gsqlparser.nodes.TMultiTarget;
 import gudusoft.gsqlparser.nodes.TResultColumnList;
 import gudusoft.gsqlparser.nodes.TTableList;
 import gudusoft.gsqlparser.stmt.TCreateTableSqlStatement;
+import gudusoft.gsqlparser.stmt.TDeleteSqlStatement;
+import gudusoft.gsqlparser.stmt.TDropTableSqlStatement;
 import gudusoft.gsqlparser.stmt.TInsertSqlStatement;
 import gudusoft.gsqlparser.stmt.TSelectSqlStatement;
 import gudusoft.gsqlparser.stmt.TUpdateSqlStatement;
@@ -44,6 +46,9 @@ public class QueryExecution {
 
 	boolean selectFlag;
 	boolean joinFlag;
+	boolean insertFlag = false;
+	boolean deleteFlag = false;
+	private boolean distinctFlag = false;
 
 	int rowIndex;
 	// public QueryExecution(MainMemory memory, Disk diskSpace) {
@@ -55,30 +60,34 @@ public class QueryExecution {
 	private FileOutputStream fileOut;
 	private List<LogicQueryNode> joinChildren;
 
+	// Store tableName if insert or delete is based on condition.
+	private String insertOrDeleteTable;
+
 	public QueryExecution() {
 		executeInstance = new Execution();
 		workbook = new HSSFWorkbook();
 		sheet = workbook.createSheet("Query Output");
 		rowIndex = 0;
-//		createFile(true);
+		// createFile(true);
 	}
 
 	private String result;
-	
-	public void createFile(boolean appendTrue) throws FileNotFoundException{
-		
-			fileOut = new FileOutputStream("Output.xls", appendTrue);
+
+	public void createFile(boolean appendTrue) throws FileNotFoundException {
+
+		fileOut = new FileOutputStream("Output.xls", appendTrue);
 	}
-	public void saveData() throws IOException{
+
+	public void saveData() throws IOException {
 		workbook.write(fileOut);
 		fileOut.flush();
 		fileOut.close();
 	}
 
 	public void runQuery(String sqlQuery) {
+		result = null;
 		TGSqlParser sqlparser = new TGSqlParser(EDbVendor.dbvoracle);
 		relList = new ArrayList<>();
-
 		// sqlparser.sqltext = "SELECT e.last_name AS name,\n" + "
 		// e.commission_pct comm,\n"
 		// + " e.salary * 12 \"Annual Salary\"\n" + "FROM scott.employees AS
@@ -114,28 +123,14 @@ public class QueryExecution {
 		// Execution executeInstance = new Execution();
 		switch (stmt.sqlstatementtype) {
 		case sstdroptable:
-			/*
-			 * TCreateTableSqlStatement deletestmt = (TCreateTableSqlStatement)
-			 * stmt; tableList = deletestmt.getTables(); for (int i=0; i<
-			 * tableList.size(); i++){
-			 * table_names.add(tableList.getTable(i).toString()); }
-			 * columnDefList = deletestmt.getColumnList(); for(int i =0;
-			 * i<columnDefList.size(); i++){
-			 * field_names.add(columnDefList.getColumn(i).getColumnName().
-			 * toString());
-			 * if(columnDefList.getColumn(i).getDatatype().toString().
-			 * toUpperCase().equals("INT")){ field_types.add(FieldType.INT);
-			 * }else
-			 * if(columnDefList.getColumn(i).getDatatype().toString().equals(
-			 * "STR20")){ field_types.add(FieldType.STR20); } else{ result =
-			 * "Invalid datatype for "+
-			 * columnDefList.getColumn(i).getColumnName().toString()+
-			 * " : "+columnDefList.getColumn(i).getDatatype().toString();
-			 * return; } } result =
-			 * executeInstance.createTable(table_names.get(0),field_names,
-			 * field_types); break;
-			 */
-
+			TDropTableSqlStatement dropstmt = (TDropTableSqlStatement) stmt;
+			tableList = dropstmt.getTables();
+			for (int i = 0; i < tableList.size(); i++) {
+				table_names.add(tableList.getElement(i).toString());
+			}
+			if (tableList != null) {
+				executeInstance.droptable(table_names);
+			}
 			break;
 		case sstselect:
 
@@ -147,11 +142,8 @@ public class QueryExecution {
 			Node rootNode = new Node(selectstmt2.toString());
 			List<String> projectionList = new ArrayList<String>();
 			String projectionData = "";
-			/*List<LogicQueryNode> */joinChildren = new ArrayList<>();
-			// ArrayList<String> relationList = new ArrayList<String>();
+			joinChildren = new ArrayList<>();
 			String conditionList = "";
-			ArrayList<String> joinList = new ArrayList<String>();
-			List<Object> outputList;
 			selectFlag = false;
 			joinFlag = false;
 			Node selectListChild = new Node("SelectList");
@@ -183,7 +175,8 @@ public class QueryExecution {
 				joinChildNode = new LogicQueryNode(temp);
 				joinChildNode.setTag(temp);
 				joinChildren.add(joinChildNode);
-				executeInstance.getColumns(temp, rel.getColumnList(), rel.getColumnTypeList());
+				// executeInstance.getColumns(temp, rel.getColumnList(),
+				// rel.getColumnTypeList());
 				relList.add(rel);
 			}
 			rootNode.addChild(fromChild);
@@ -209,6 +202,10 @@ public class QueryExecution {
 				rootNode.addChild(whereChild);
 
 				selectFlag = true;
+			}
+
+			if (selectstmt.getSelectDistinct() != null) {
+				distinctFlag = true;
 			}
 			// LogicQueryNode lqRelationNode = new LogicQueryNode(relationList);
 			LogicQueryNode lqJoinNode = new LogicQueryNode("Joins");
@@ -238,7 +235,7 @@ public class QueryExecution {
 				rootNode.addChild(orderByChild);
 			}
 			boolean or_flag = false;
-			if (operatorList != null){
+			if (operatorList != null) {
 				for (int i = 0; i < operatorList.size(); i++) {
 					if (operatorList.get(i).toUpperCase().equals("OR")) {
 						or_flag = true;
@@ -257,14 +254,16 @@ public class QueryExecution {
 						}
 						orNode = orConditionOperation(innerConditionList, operatorList, joinChildren);
 						executeUnion(orNode);
-						if (orderBy != null) {
-							orNode.setData(executeInstance.performSimpleSorting(orNode.getData(), orderBy));
-						}
-						result = executeInstance.performProjection(orNode.getData(),
-								(ArrayList<String>) projectionList);
-						outputList = executeInstance.showtable(result);
-						createExcel(outputList);
-						writeDataToFile();
+						produceOutput(orNode.getData(), projectionList, orderBy);
+						/*
+						 * if (orderBy != null) {
+						 * orNode.setData(executeInstance.performSimpleSorting(
+						 * orNode.getData(), orderBy)); } result =
+						 * executeInstance.performProjection(orNode.getData(),
+						 * (ArrayList<String>) projectionList); outputList =
+						 * executeInstance.showtable(result);
+						 * createExcel(outputList);
+						 */
 						// lqProjectionNode.addChild(orNode);
 					} else {
 						lqSelectionNode.addChild(lqJoinNode);
@@ -278,29 +277,31 @@ public class QueryExecution {
 							lqJoinNode = lqJoinNode.getParent().createCopy();
 							if (lqJoinNode.getCondition() != null) {
 								try {
-//									outputList = executeInstance.showtable(relationName);
+									// outputList =
+									// executeInstance.showtable(relationName);
 									updateRelationInCondition(lqJoinNode.getCondition());
 									lqJoinNode.setData(
 											executeInstance.applyCondition(relationName, lqJoinNode.getCondition()));
-									updateRelationList(lqJoinNode.getData(),lqJoinNode.getCondition());
+									updateRelationList(lqJoinNode.getData(), lqJoinNode.getCondition());
 									System.out.println(lqJoinNode.getData());
 								} catch (Exception e) {
 									e.printStackTrace();
 								}
-							}
-							else{
+							} else {
 								lqJoinNode.setData(relationName);
 							}
 						}
-//						lqJoinNode = lqJoinNode.getChildren().get(0).createCopy();
-						if (orderBy != null) {
-							lqJoinNode.setData(executeInstance.performSimpleSorting(lqJoinNode.getData(), orderBy));
-						}
-						result = executeInstance.performProjection(lqJoinNode.getData(),
-								(ArrayList<String>) projectionList);
-						outputList = executeInstance.showtable(result);
-						createExcel(outputList);
-						writeDataToFile();
+						// lqJoinNode =
+						// lqJoinNode.getChildren().get(0).createCopy();
+						/*
+						 * if (orderBy != null) {
+						 * lqJoinNode.setData(executeInstance.
+						 * performSimpleSorting(lqJoinNode.getData(), orderBy));
+						 * }
+						 */
+						produceOutput(lqJoinNode.getData(), projectionList, orderBy);
+						// outputList = executeInstance.showtable(result);
+						// createExcel(outputList);
 					}
 				} else {
 					lqSelectionNode.setChildren(joinChildren);
@@ -311,18 +312,16 @@ public class QueryExecution {
 						}
 						orNode = orConditionOperation(innerConditionList, operatorList, joinChildren);
 						executeUnion(orNode);
-						if (orderBy != null) {
-							orNode.setData(executeInstance.performSimpleSorting(orNode.getData(), orderBy));
-						}
-						result = executeInstance.performProjection(orNode.getData(),
-								(ArrayList<String>) projectionList);
+						/*
+						 * if (orderBy != null) {
+						 * orNode.setData(executeInstance.performSimpleSorting(
+						 * orNode.getData(), orderBy)); }
+						 */
+						produceOutput(orNode.getData(), projectionList, orderBy);
 
-						outputList = executeInstance.showtable(result);
-						createExcel(outputList);
-						writeDataToFile();
-						// System.out.println("Result = " + result);
-					}
-					else{
+						// outputList = executeInstance.showtable(result);
+						// createExcel(outputList);
+					} else {
 						lqJoinNode.setChildren(joinChildren);
 						lqJoinNode = optimizeLogicalTree(lqJoinNode, innerConditionList, operatorList);
 						lqJoinNode.setTag("Join");
@@ -333,30 +332,31 @@ public class QueryExecution {
 							lqJoinNode = lqJoinNode.getParent().createCopy();
 							if (lqJoinNode.getCondition() != null) {
 								try {
-//									outputList = executeInstance.showtable(relationName);
+									// outputList =
+									// executeInstance.showtable(relationName);
 									updateRelationInCondition(lqJoinNode.getCondition());
 									lqJoinNode.setData(
 											executeInstance.applyCondition(relationName, lqJoinNode.getCondition()));
-									updateRelationList(lqJoinNode.getData(),lqJoinNode.getCondition());
+									updateRelationList(lqJoinNode.getData(), lqJoinNode.getCondition());
 									System.out.println(lqJoinNode.getData());
 								} catch (Exception e) {
 									e.printStackTrace();
 								}
-							}
-							else{
+							} else {
 								lqJoinNode.setData(relationName);
 							}
 						}
-//						lqJoinNode = lqJoinNode.getChildren().get(0).createCopy();
-						if (orderBy != null) {
-							lqJoinNode.setData(executeInstance.performSimpleSorting(lqJoinNode.getData(), orderBy));
-						}
-						result = executeInstance.performProjection(lqJoinNode.getData(),
-								(ArrayList<String>) projectionList);
-						outputList = executeInstance.showtable(result);
-						createExcel(outputList);
-						writeDataToFile();
-						
+						// lqJoinNode =
+						// lqJoinNode.getChildren().get(0).createCopy();
+						/*
+						 * if (orderBy != null) {
+						 * lqJoinNode.setData(executeInstance.
+						 * performSimpleSorting(lqJoinNode.getData(), orderBy));
+						 * }
+						 */
+						produceOutput(lqJoinNode.getData(), projectionList, orderBy);
+						// outputList = executeInstance.showtable(result);
+						// createExcel(outputList);
 					}
 				}
 			} else {
@@ -369,35 +369,32 @@ public class QueryExecution {
 					}
 					lqProjectionNode.setColumnList(updatedColumnList);
 				}
-				if (orderBy != null) {
-					lqProjectionNode
-							.setData(executeInstance.performSimpleSorting(joinChildren.get(0).getData(), orderBy));
-				} else {
-					lqProjectionNode.setData(joinChildren.get(0).getData());
-				}
-				result = executeInstance.performProjection(lqProjectionNode.getData(),
-						(ArrayList<String>) lqProjectionNode.getColumnList());
-				outputList = executeInstance.showtable(result);
-				createExcel(outputList);
-				writeDataToFile();
-				System.out.println("Result = " + result);
+				/*
+				 * if (orderBy != null) { lqProjectionNode
+				 * .setData(executeInstance.performSimpleSorting(joinChildren.
+				 * get(0).getData(), orderBy)); } else {
+				 * lqProjectionNode.setData(joinChildren.get(0).getData()); }
+				 */
+				produceOutput(joinChildren.get(0).getData(), lqProjectionNode.getColumnList(), orderBy);
+				// outputList = executeInstance.showtable(result);
+				// createExcel(outputList);
+				// System.out.println("Result = " + result);
 			}
 
-			showLogicTree(lqProjectionNode);
-
-			// TExpression whereCondition =
-			// selectstmt.getWhereClause().getCondition();
-			// whereCondition.getSubQuery();
-			// boolean AND_FLAG = false;
-			// //
-			// if(selectstmt.getWhereClause().getCondition().getExpressionType().equals(EExpressionType.logical_and_t)){
-			// System.out.println(selectstmt.getWhereClause().getCondition().getLeftOperand());
-			// System.out.println(selectstmt.getWhereClause().getCondition().getRightOperand());
-			// System.out.println(selectstmt.getWhereClause().getCondition().getComparisonOperator());
-			// return new Object[] { lqProjectionNode, rootNode };
-			setResult(executeInstance.selectQuery(lqProjectionNode, rootNode));
-
 			break;
+		case sstdelete:
+			TDeleteSqlStatement deletestmt = (TDeleteSqlStatement) stmt;
+			tableList = deletestmt.getTables();
+			
+			if(deletestmt.getWhereClause()!=null){
+				TSelectSqlStatement selectSqlStatement = new TSelectSqlStatement(EDbVendor.dbvmysql);
+				selectSqlStatement.setResultColumnList(deletestmt.getResultColumnList());
+				selectSqlStatement.setWhereClause(deletestmt.getWhereClause());
+				selectSqlStatement.tables = deletestmt.getTables();
+				deleteFlag = true;
+				analyzeStmt(selectSqlStatement);
+				//Call delete Method with original table and insertOrDeleteTable 
+			}
 		case sstupdate:
 			TUpdateSqlStatement updatestmt = (TUpdateSqlStatement) stmt;
 			tableList = updatestmt.getTables();
@@ -444,46 +441,81 @@ public class QueryExecution {
 			if (insertStmt.getTargetTable() != null) {
 				System.out.println("Table name:" + insertStmt.getTargetTable().toString());
 			} else {
-				table_names.add(insertStmt.getTargetTable().toString());
+				// table_names.add(insertStmt.getTargetTable().toString());
+				result = "Invalid statement";
+				break;
 			}
 
 			System.out.println("insert value type:" + insertStmt.getValueType());
-
-			if (insertStmt.getColumnList() != null) {
-				System.out.println("columns:");
-				for (int i = 0; i < insertStmt.getColumnList().size(); i++) {
-					field_names.add(insertStmt.getColumnList().getObjectName(i).toString());
-					System.out.println("\t" + insertStmt.getColumnList().getObjectName(i).toString());
-				}
-			}
-
-			if (insertStmt.getValues() != null) {
-				System.out.println("values:");
-				for (int i = 0; i < insertStmt.getValues().size(); i++) {
-					TMultiTarget mt = insertStmt.getValues().getMultiTarget(i);
-					for (int j = 0; j < mt.getColumnList().size(); j++) {
-						System.out.println("\t" + mt.getColumnList().getResultColumn(j).toString());
-						field_values.add(mt.getColumnList().getResultColumn(j));
+			if (insertStmt.getSubQuery() != null) {
+				System.out.println(insertStmt.getSubQuery().toString());
+				insertFlag = true;
+				analyzeStmt(insertStmt.getSubQuery());
+				executeInstance.insertIntoTable(insertStmt.getTargetTable().toString(), insertOrDeleteTable);
+				insertFlag = false;
+			} else {
+				if (insertStmt.getColumnList() != null) {
+					System.out.println("columns:");
+					for (int i = 0; i < insertStmt.getColumnList().size(); i++) {
+						field_names.add(insertStmt.getColumnList().getObjectName(i).toString());
+						System.out.println("\t" + insertStmt.getColumnList().getObjectName(i).toString());
 					}
 				}
-			}
 
-			if (insertStmt.getSubQuery() != null) {
-				// analyzeSelectStmt(insertStmt.getSubQuery());
+				if (insertStmt.getValues() != null) {
+					System.out.println("values:");
+					for (int i = 0; i < insertStmt.getValues().size(); i++) {
+						TMultiTarget mt = insertStmt.getValues().getMultiTarget(i);
+						for (int j = 0; j < mt.getColumnList().size(); j++) {
+							System.out.println("\t" + mt.getColumnList().getResultColumn(j).toString());
+							field_values.add(mt.getColumnList().getResultColumn(j));
+						}
+					}
+				}
+
+				if (insertStmt.getSubQuery() != null) {
+					// analyzeSelectStmt(insertStmt.getSubQuery());
+				}
+				setResult(executeInstance.insertIntoTable(insertStmt.getTargetTable().toString(), field_names,
+						field_values));
 			}
-			setResult(
-					executeInstance.insertIntoTable(insertStmt.getTargetTable().toString(), field_names, field_values));
 			break;
 		default:
-			System.out.println(stmt.sqlstatementtype.toString());
+			// System.out.println(stmt.sqlstatementtype.toString());
+		}
+	}
+
+	public void produceOutput(String tableName, List<String> projectionList, String orderBy) {
+		if (orderBy != null) {
+			tableName = executeInstance.performSimpleSorting(tableName, orderBy);
+		}
+		if (distinctFlag) {
+			tableName = executeInstance.removeDuplicates(tableName);
+		}
+		try {
+			tableName = executeInstance.performProjection(tableName, (ArrayList<String>) projectionList);
+		} catch (Exception e) {
+			result = "Table not found or error in projection";
+			e.printStackTrace();
+			return;
+		}
+		if (!insertFlag && !deleteFlag) {
+			List<Object> outputList = executeInstance.showtable(tableName);
+			createExcel(outputList);
+			if (executeInstance.getCreatedTablesList() != null) {
+				executeInstance.droptable((ArrayList<String>) executeInstance.getCreatedTablesList());
+			}
+		} else {
+			insertOrDeleteTable = tableName;
 		}
 	}
 
 	public void executeUnion(LogicQueryNode lqr) {
 		for (int i = 0; i < lqr.getChildren().size() - 1; i++) {
 			lqr.getChildren().get(i + 1).setData(executeInstance.performUnion(lqr.getChildren().get(i).getData(),
-					lqr.getChildren().get(i).getData()));
-			System.out.println("Union : " + lqr.getChildren().get(i + 1).getData());
+					lqr.getChildren().get(i + 1).getData()));
+			// System.out.println("Union : " + lqr.getChildren().get(i +
+			// 1).getData());
 		}
 		lqr.setData(lqr.getChildren().get(lqr.getChildren().size() - 1).getData());
 	}
@@ -504,9 +536,6 @@ public class QueryExecution {
 				cellA1.setCellValue(tupleList.get(i).getField(j).toString());
 			}
 		}
-	}
-
-	public void writeDataToFile() {
 	}
 
 	public void showLogicTree(LogicQueryNode root) {
@@ -824,18 +853,19 @@ public class QueryExecution {
 		}
 		return orNode;
 	}
-	void updateRelationList(String relationName,Condition condition){
-		for(int i=0; i<joinChildren.size(); i++){
-			if(condition.getLeftOperandRelationName().equals(joinChildren.get(i).getData())){
+
+	void updateRelationList(String relationName, Condition condition) {
+		for (int i = 0; i < joinChildren.size(); i++) {
+			if (condition.getLeftOperandRelationName().equals(joinChildren.get(i).getData())) {
 				joinChildren.get(i).setTag(relationName);
 			}
-			if(condition.getRightOperandRelationName().equals(joinChildren.get(i).getData())){
+			if (condition.getRightOperandRelationName().equals(joinChildren.get(i).getData())) {
 				joinChildren.get(i).setTag(relationName);
 			}
 		}
 	}
-	
-	void updateRelationInCondition(Condition condition){
+
+	void updateRelationInCondition(Condition condition) {
 		condition.updateRelationInCondition(joinChildren);
 	}
 }
