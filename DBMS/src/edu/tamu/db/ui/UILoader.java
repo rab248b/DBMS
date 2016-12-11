@@ -183,7 +183,7 @@ public class UILoader extends Frame {
 
 					} else {
 						File file = chooser.getSelectedFile();
-						String fileData;
+						String fileData = null;
 						try {
 							BufferedReader br = new BufferedReader(new FileReader(file));
 							try {
@@ -199,12 +199,56 @@ public class UILoader extends Frame {
 							} finally {
 								br.close();
 							}
-							consoleText.setText(fileData);
-							JScrollPane scrollPane = new JScrollPane(consoleText);
+							try{qe.createFile(!closeFlag);
+							for (String line : fileData.split("\\n")) {
+
+								qe.runQuery(line);
+
+								if (selectFlag) {
+									Object rowData[][] = { { "Row1-Column1", "Row1-Column2", "Row1-Column3" },
+											{ "Row2-Column1", "Row2-Column2", "Row2-Column3" } };
+									Object columnNames[] = { "Column One", "Column Two", "Column Three" };
+									JTable table = new JTable(rowData, columnNames);
+									JScrollPane scrollPane = new JScrollPane(table);
+									scrollPane.setBounds(
+											new Rectangle((int) (frame_width / 10), 6 * (int) (frame_height / 10),
+													(int) (frame_width * 0.8), 2 * (int) (frame_height / 10)));
+									f.add(scrollPane, BorderLayout.CENTER);
+								} else {
+									consoleText.setText(consoleText.getText() + qe.getResult() + "\n");
+									
+									
+								}
+							}
+							scrollPane.setViewportView(consoleText);
 							scrollPane.setBounds(
 									new Rectangle((int) (frame_width / 10), 6 * (int) (frame_height / 10),
 											(int) (frame_width * 0.8), 2 * (int) (frame_height / 10)));
+//							aboutDialog.setVisible(true);
+							statusLabel.setText("Do you want to continue?");
+							statusLabel.setBounds((int) (frame_width / 10), 8 * (int) (frame_height / 10),
+						 (int) (frame_width * 0.8), 1 * (int) (frame_height /
+						 10));
+							scrollPane.setVisible(true);
 							f.add(scrollPane, BorderLayout.CENTER);
+							statusLabel.setVisible(true);
+							b4.setVisible(true);
+							b5.setVisible(true);
+							b6.setVisible(true);
+							f.add(statusLabel);
+							f.add(b4);
+							f.add(b5);
+							f.add(b6);
+//							qe.saveData();
+						} catch (Exception e1) {
+							e1.printStackTrace();
+						}
+//							consoleText.setText(fileData);
+//							JScrollPane scrollPane = new JScrollPane(consoleText);
+//							scrollPane.setBounds(
+//									new Rectangle((int) (frame_width / 10), 6 * (int) (frame_height / 10),
+//											(int) (frame_width * 0.8), 2 * (int) (frame_height / 10)));
+//							f.add(scrollPane, BorderLayout.CENTER);
 
 						} catch (IOException e1) {
 							e1.printStackTrace();
