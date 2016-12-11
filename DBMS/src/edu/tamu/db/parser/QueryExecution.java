@@ -111,6 +111,13 @@ public class QueryExecution {
 			return;
 		}
 	}
+	
+	private TCustomSqlStatement parseQuery(String query){
+		TGSqlParser sqlparser = new TGSqlParser(EDbVendor.dbvoracle);
+		sqlparser.sqltext = query;
+		sqlparser.parse();
+		return sqlparser.sqlstatements.get(0);
+	}
 
 	protected void analyzeStmt(TCustomSqlStatement stmt) {
 		TTableList tableList = new TTableList();
@@ -387,14 +394,17 @@ public class QueryExecution {
 			tableList = deletestmt.getTables();
 			
 			if(deletestmt.getWhereClause()!=null){
-				TSelectSqlStatement selectSqlStatement = new TSelectSqlStatement(EDbVendor.dbvmysql);
-				selectSqlStatement.setResultColumnList(deletestmt.getResultColumnList());
-				selectSqlStatement.setWhereClause(deletestmt.getWhereClause());
-				selectSqlStatement.tables = deletestmt.getTables();
+				String query = "SELECT * FROM " + tableList.getElement(0).toString()+" "+deletestmt.getWhereClause().toString(); 
+				TSelectSqlStatement selectSqlStatement = (TSelectSqlStatement) parseQuery(query);
 				deleteFlag = true;
 				analyzeStmt(selectSqlStatement);
+				result = executeInstance.deleteFromTable(tableList.getElement(0).toString(), insertOrDeleteTable);
+				deleteFlag = false;
 				//Call delete Method with original table and insertOrDeleteTable 
+			}else{
+				result = executeInstance.deleteTable(tableList.getElement(0).toString());
 			}
+			break;
 		case sstupdate:
 			TUpdateSqlStatement updatestmt = (TUpdateSqlStatement) stmt;
 			tableList = updatestmt.getTables();

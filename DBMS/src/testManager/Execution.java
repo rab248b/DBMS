@@ -1231,4 +1231,91 @@ public class Execution {
 		this.createdTablesList = createdTablesList;
 	}
 
+	 public String deleteTable( String tableName){
+			Relation relation_reference1 = schema_manager.getRelation(tableName);
+			relation_reference1.deleteBlocks(0);
+//			System.out.println("Now the table contains no tuples \n" + relation_reference1);
+			result = "Tuples of table "+ tableName + " deleted successfully.";
+			return result;
+		}
+		  
+		  public String deleteFromTable( String tableName, String tableName2){
+				Relation relation_reference1 = schema_manager.getRelation(tableName);
+				Relation relation_reference2 = schema_manager.getRelation(tableName2);
+				
+				ArrayList<Tuple> tuplesOftable1= new ArrayList<>();
+				ArrayList<Tuple> allTuplesofTable1= new ArrayList<>();
+				
+				ArrayList<Tuple> tuplesOftable2= new ArrayList<>();
+				ArrayList<Tuple> allTuplesofTable2= new ArrayList<>();
+				
+				boolean alreadyPresent=false;
+				int memorySize=mem.getMemorySize();
+				int j=relation_reference1.getNumOfBlocks();
+				int k=0;
+				int numberOfBlocks=0;
+				do {
+					if(j<memorySize-1){
+						relation_reference1.getBlocks(k, 0, j);
+						numberOfBlocks=j;
+						j=0;				
+					}
+					else{
+						numberOfBlocks=memorySize-1;
+						relation_reference1.getBlocks(k, 0, numberOfBlocks);
+						k = k + memorySize - 1;
+						j=j-memorySize+1;
+					}			
+					tuplesOftable1 = mem.getTuples(0,numberOfBlocks );
+					for (Tuple tempTupleR : tuplesOftable1) {
+						allTuplesofTable1.add(tempTupleR);
+					}
+				} while(j>0);	
+				
+				
+				j=relation_reference2.getNumOfBlocks();
+				k=0;
+				numberOfBlocks=0;
+				do {
+					if(j<memorySize-1){
+						relation_reference2.getBlocks(k, 0, j);
+						numberOfBlocks=j;
+						j=0;				
+					}
+					else{
+						numberOfBlocks=memorySize-1;
+						relation_reference2.getBlocks(k, 0, numberOfBlocks);
+						k = k + memorySize - 1;
+						j=j-memorySize+1;
+					}			
+					tuplesOftable2 = mem.getTuples(0,numberOfBlocks );
+					for (Tuple tempTupleR : tuplesOftable2) {
+						allTuplesofTable2.add(tempTupleR);
+					}
+				} while(j>0);	
+				
+				
+				
+				for(Tuple tempTup2: allTuplesofTable2){
+					alreadyPresent=false;
+					for(Tuple tempTuple1: allTuplesofTable1){
+						if(tempTuple1.toString().equals(tempTup2.toString())){
+							alreadyPresent=true;
+							allTuplesofTable1.remove(tempTuple1);
+							break;
+						}
+					}
+				}
+				
+				relation_reference1.deleteBlocks(0);
+				
+				
+				for(Tuple tempTupleof1: allTuplesofTable1 ){
+					appendTupleToRelation(relation_reference1, mem, memorySize-1, tempTupleof1);
+					
+				}
+				result = "Tuples of "+ tableName+" deleted successfully";
+				return result;
+//				System.out.println("Tuples from table2 are deleted \n" + relation_reference1);
+			}
 }
